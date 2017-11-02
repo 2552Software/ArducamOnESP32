@@ -1,4 +1,4 @@
-// ArduCAM Mini demo (C)2017 Lee (Mark Shavlik made changes to run on stock esp 32 dev board and other changes
+/// ArduCAM Mini demo (C)2017 Lee (Mark Shavlik made changes to run on stock esp 32 dev board and other changes
 // Web: http://www.ArduCAM.com
 // This program is a demo of how to use most of the functions
 // of the library with ArduCAM ESP32 2MP/5MP camera.
@@ -20,7 +20,9 @@
 #include "ESP32WebServer.h"
 #include <ArduCAM.h>
 #include <SPI.h>
+#include <PubSubClient.h>
 #include "memorysaver.h"
+
 static const uint8_t D10 = 4;
 #if !(defined ESP32 )
 #error Please select the ArduCAM ESP32 UNO board in the Tools/Board
@@ -32,9 +34,11 @@ static const uint8_t D10 = 4;
 #error Please select the hardware platform and camera module in the ../libraries/ArduCAM/memorysaver.h file
 #endif
 //static const uint8_t D10 = 4; // marks added this, what pin am i using?
+
 // set GPIO17 as the slave select :
 const int CS = 17;
 const int CAM_POWER_ON = D10;// marks added this
+
 #if defined (OV2640_MINI_2MP) || defined (OV2640_CAM)
   ArduCAM myCAM(OV2640, CS);
 #elif defined (OV5640_MINI_5MP_PLUS) || defined (OV5640_CAM)
@@ -45,17 +49,16 @@ const int CAM_POWER_ON = D10;// marks added this
 
 //you can change the value of wifiType to select Station or AP mode.
 //Default is AP mode.
-int wifiType = 1; // 0:Station  1:AP
+int wifiType = 0; // 0:Station  1:AP
 
 //AP mode configuration
-
 const char *AP_ssid = "esp32Cam"; // find a way to auto name by checking for existing names since we will have many cameras
 //Default is no password.If you want to set password,put your password here
 const char *AP_password = NULL;
 
 //Station mode you should put your ssid and password
-const char *ssid = "guest"; // Put your SSID here
-const char *password = ""; // Put your PASSWORD here
+const char *ssid = "SAM-Home"; // Put your SSID here
+const char *password = "testtesttest"; // Put your PASSWORD here
 
 static const size_t bufferSize = 2048;
 static uint8_t buffer[bufferSize] = {0xFF};
@@ -96,43 +99,43 @@ void camCapture(ArduCAM myCAM){
   i = 0;
   while ( len-- )
   {
-  temp_last = temp;
-  temp =  SPI.transfer(0x00);
-  //Read JPEG data from FIFO
-  if ( (temp == 0xD9) && (temp_last == 0xFF) ) //If find the end ,break while,
-  {
-    buffer[i++] = temp;  //save the last  0XD9     
-    //Write the remain bytes in the buffer
-    if (!client.connected()) {
-      Serial.println(F("!client.connected() 2"));
-      break;
-    }
-    client.write(&buffer[0], i);
-    is_header = false;
-    i = 0;
-    myCAM.CS_HIGH();
-    break; 
+    temp_last = temp;
+    temp =  SPI.transfer(0x00);
+    //Read JPEG data from FIFO
+    if ( (temp == 0xD9) && (temp_last == 0xFF) ) //If find the end ,break while,
+    {
+      buffer[i++] = temp;  //save the last  0XD9     
+      //Write the remain bytes in the buffer
+      if (!client.connected()) {
+        Serial.println(F("!client.connected() 2"));
+        break;
+      }
+      client.write(&buffer[0], i);
+      is_header = false;
+      i = 0;
+      myCAM.CS_HIGH();
+      break; 
     }  
     if (is_header == true)
-    { 
-      //Write image data to buffer if not full
-      if (i < bufferSize)
-        buffer[i++] = temp;
-      else
-      {
-        //Write bufferSize bytes image data to file
-        if (!client.connected()) break;
-        client.write(&buffer[0], bufferSize);
-        i = 0;
-        buffer[i++] = temp;
-        }        
-      }
-      else if ((temp == 0xD8) & (temp_last == 0xFF))
-      {
-        is_header = true;
-        buffer[i++] = temp_last;
-        buffer[i++] = temp;   
-      } 
+      { 
+        //Write image data to buffer if not full
+        if (i < bufferSize)
+          buffer[i++] = temp;
+        else
+        {
+          //Write bufferSize bytes image data to file
+          if (!client.connected()) break;
+            client.write(&buffer[0], bufferSize);
+            i = 0;
+            buffer[i++] = temp;
+          }        
+        }
+        else if ((temp == 0xD8) & (temp_last == 0xFF))
+        {
+          is_header = true;
+          buffer[i++] = temp_last;
+          buffer[i++] = temp;   
+        } 
     } 
 }
 
@@ -268,7 +271,7 @@ void handleNotFound(){
     myCAM.OV5642_set_JPEG_size(ql);
   #endif
   
-  Serial.println("QL change to: " + server.arg("ql"));
+    Serial.println("QL change to: " + server.arg("ql"));
   }
 }
 void setup() {
@@ -359,45 +362,45 @@ void setup() {
     
     myCAM.clear_fifo_flag();
     if (wifiType == 0){
-    if(!strcmp(ssid,"SSID")){
-    Serial.println(F("Please set your SSID"));
-    while(1);
+      if(!strcmp(ssid,"SSID")){
+        Serial.println(F("Please set your SSID"));
+        while(1);
+      }
+      if(!strcmp(password,"PASSWORD")){
+        Serial.println(F("Please set your PASSWORD"));
+        while(1);
+      }
+      
+      // Connect to WiFi network
+      Serial.println();
+      Serial.println();
+      Serial.print(F("Connecting to "));
+      Serial.println(ssid);
+      
+      WiFi.mode(WIFI_STA);
+      WiFi.begin(ssid, password);
+      while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(F("."));
+      }
+      Serial.println(F("WiFi connected"));
+      Serial.println("");
+      Serial.println(WiFi.localIP());
+    } else if (wifiType == 1){
+      Serial.println();
+      Serial.println();
+      Serial.print(F("Share AP: "));
+      Serial.println(AP_ssid);
+      Serial.print(F("The password is: "));
+      Serial.println(AP_password);
+      
+      WiFi.mode(WIFI_AP);
+      WiFi.softAP(AP_ssid, AP_password);
+      Serial.println("");
+      Serial.println(WiFi.softAPIP());
+
     }
-    if(!strcmp(password,"PASSWORD")){
-    Serial.println(F("Please set your PASSWORD"));
-    while(1);
-    }
-    
-    // Connect to WiFi network
-    Serial.println();
-    Serial.println();
-    Serial.print(F("Connecting to "));
-    Serial.println(ssid);
-    
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(F("."));
-    }
-    Serial.println(F("WiFi connected"));
-    Serial.println("");
-    Serial.println(WiFi.localIP());
-    }else if (wifiType == 1){
-    Serial.println();
-    Serial.println();
-    Serial.print(F("Share AP: "));
-    Serial.println(AP_ssid);
-    Serial.print(F("The password is: "));
-    Serial.println(AP_password);
-    
-    WiFi.mode(WIFI_AP);
-    WiFi.softAP(AP_ssid, AP_password);
-    Serial.println("");
-    Serial.println(WiFi.softAPIP());
-    }
-    
-    // Start the server
+
     Serial.println(F("Start the server"));
     
     server.on("/capture", HTTP_GET, serverCapture);
